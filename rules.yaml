@@ -1,0 +1,70 @@
+categories:
+  - name: important
+    priority: 1
+    folder: Important
+    rules:
+      - field: x_priority
+        pattern: "^[12]$"
+      # Add your important senders here:
+      # - field: sender
+      #   pattern: "boss@example\\.com"
+
+  - name: finance
+    priority: 2
+    folder: Finance
+    rules:
+      - field: sender
+        pattern: "smbc|mufg|mizuho|rakuten-bank|jibunbank|sbi|paypay-bank"
+      - field: sender
+        pattern: "visa|mastercard|jcb|american.?express"
+      - field: subject
+        pattern: "お取引|入金|出金|振込|口座|明細|ご利用|カード|請求|statement|payment"
+
+  - name: shopping
+    priority: 3
+    folder: Shopping
+    rules:
+      - field: sender
+        pattern: "amazon\\.co\\.jp|rakuten\\.co\\.jp|mercari|yahoo-shopping|zozo"
+      - field: subject
+        pattern: "ご注文|発送|配送|お届け|出荷|shipping|order|tracking"
+      - field: sender
+        pattern: "noreply@.*\\.(amazon|rakuten|mercari)"
+
+  - name: newsletter
+    priority: 4
+    folder: Newsletter
+    rules:
+      - field: list_unsubscribe
+        pattern: ".+"
+      - field: sender
+        pattern: "noreply|no-reply|newsletter|mailmag|info@"
+      - field: subject
+        pattern: "メルマガ|ニュースレター|お知らせ|配信|newsletter"
+
+  - name: social
+    priority: 5
+    folder: Social
+    rules:
+      - field: sender
+        pattern: "facebookmail|twitter|x\\.com|noreply.*line\\.me|discord"
+      - field: sender
+        pattern: "notification.*@.*\\.com"
+      - field: subject
+        pattern: "フォロー|いいね|メッセージ|リクエスト|invitation"
+
+  - name: spam
+    priority: 6
+    folder: Spam
+    rules:
+      - field: subject
+        pattern: "当選|おめでとう|congratulations|無料|副業|稼げる|儲かる"
+      - field: subject
+        pattern: "urgent|act.?now|limited.?time|click.?here"
+      - field: subject
+        pattern: "出会い|アダルト|ローン|借入|融資|即日"
+
+  - name: other
+    priority: 99
+    folder: INBOX
+    rules: []
