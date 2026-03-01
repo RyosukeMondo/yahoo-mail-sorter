@@ -109,24 +109,60 @@ class IMAPClient:
         if limit is not None:
             uid_list = uid_list[-limit:]  # most recent
 
+        # Batch fetch in chunks to avoid server timeout
         emails: list[Email] = []
-        for uid_bytes in uid_list:
-            uid = uid_bytes.decode() if isinstance(uid_bytes, bytes) else str(uid_bytes)
-            email = self._fetch_one(uid)
-            if email is not None:
-                emails.append(email)
+        batch_size = 50
+        for i in range(0, len(uid_list), batch_size):
+            batch = uid_list[i : i + batch_size]
+            batch_emails = self._fetch_batch(batch)
+            emails.extend(batch_emails)
+            logger.info("Fetched %d/%d emails", len(emails), len(uid_list))
 
         return emails
 
-    def _fetch_one(self, uid: str) -> Email | None:
-        status, data = self.conn.uid("FETCH", uid, f"({FETCH_HEADERS})")
-        if status != "OK" or not data or data[0] is None:
-            logger.warning("FETCH failed for UID %s", uid)
-            return None
+    def _fetch_batch(self, uid_list: list[bytes]) -> list[Email]:
+        """Fetch headers for a batch of UIDs in a single IMAP command."""
+        uid_set = b",".join(uid_list)
+        try:
+            status, data = self.conn.uid(
+                "FETCH", uid_set.decode(), f"({FETCH_HEADERS})"
+            )
+        except (imaplib.IMAP4.abort, imaplib.IMAP4.error) as exc:
+            logger.warning("Batch fetch failed, reconnecting: %s", exc)
+            self._reconnect()
+            status, data = self.conn.uid(
+                "FETCH", uid_set.decode(), f"({FETCH_HEADERS})"
+            )
+        if status != "OK":
+            logger.warning("FETCH batch failed: %s", status)
+            return []
 
-        raw_headers: bytes = data[0][1] if isinstance(data[0], tuple) else data[0]
+        emails: list[Email] = []
+        for item in data:
+            if item is None or not isinstance(item, tuple):
+                continue
+            # Extract UID from response line like b'123 (UID 456 BODY[...]'
+            uid = _extract_uid(item[0])
+            if uid is None:
+                continue
+            try:
+                email = _parse_headers(uid, item[1])
+                emails.append(email)
+            except Exception:
+                logger.warning("Failed to parse headers for UID %s", uid)
+        return emails
 
-        return _parse_headers(uid, raw_headers)
+    def _reconnect(self) -> None:
+        """Drop current connection and reconnect."""
+        logger.info("Reconnecting to IMAP server...")
+        try:
+            if self._conn is not None:
+                self._conn.logout()
+        except Exception:
+            pass
+        self._conn = None
+        self.connect()
+        self.conn.select("INBOX", readonly=True)
 
     def move_email(self, uid: str, dest_folder: str) -> None:
         # Select INBOX as writable
@@ -152,6 +188,16 @@ class IMAPClient:
             if check_status != "OK":
                 raise IMAPOperationError(f"Cannot create folder {folder}: {status}")
             self.conn.select("INBOX", readonly=True)
+
+
+def _extract_uid(response_line: bytes) -> str | None:
+    """Extract UID from an IMAP FETCH response line like b'1 (UID 42 BODY[...]'."""
+    import re
+
+    match = re.search(rb"UID (\d+)", response_line)
+    if match:
+        return match.group(1).decode()
+    return None
 
 
 def _parse_headers(uid: str, raw: bytes) -> Email:

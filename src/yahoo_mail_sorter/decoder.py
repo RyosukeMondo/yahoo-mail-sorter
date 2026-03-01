@@ -27,6 +27,10 @@ def decode_header_value(raw: str | bytes | None) -> str:
     if raw is None:
         return ""
 
+    # email.message.Message.get() can return a Header object
+    if not isinstance(raw, (str, bytes)):
+        raw = str(raw)
+
     if isinstance(raw, bytes):
         raw = raw.decode("utf-8", errors="replace")
 

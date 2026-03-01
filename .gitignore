@@ -1,22 +1,71 @@
-# Python-generated files
+# Python byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Distribution / packaging
 build/
 dist/
 wheels/
 *.egg-info/
 *.egg
+*.whl
+sdist/
+MANIFEST
 
 # Virtual environments
 .venv/
+venv/
+env/
+ENV/
 
 # Environment / secrets
 .env
+.env.*
+!.env.example
 
-# Tool caches
-.mypy_cache/
+# uv
+.uv/
+
+# Testing
 .pytest_cache/
-.ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# Linting
+.ruff_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Claude
+.claude/
