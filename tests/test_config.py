@@ -54,3 +54,14 @@ class TestLoadConfig:
         monkeypatch.delenv("YAHOO_MAIL_PASSWORD", raising=False)
         with pytest.raises(ConfigError, match="Missing required env vars"):
             load_config(env_path=env)
+
+    def test_invalid_port_raises(self, tmp_path: Path) -> None:
+        env = tmp_path / ".env"
+        env.write_text(
+            "YAHOO_IMAP_HOST=imap.test\n"
+            "YAHOO_IMAP_PORT=not_a_number\n"
+            "YAHOO_MAIL_USER=u\n"
+            "YAHOO_MAIL_PASSWORD=p\n"
+        )
+        with pytest.raises(ConfigError, match="YAHOO_IMAP_PORT must be an integer"):
+            load_config(env_path=env)

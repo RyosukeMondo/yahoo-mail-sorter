@@ -38,7 +38,7 @@ def load_config(env_path: Path | None = None) -> AppConfig:
     Raises:
         ConfigError: When required environment variables are missing.
     """
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=env_path, override=True)
 
     missing = [
         var
@@ -49,10 +49,15 @@ def load_config(env_path: Path | None = None) -> AppConfig:
         raise ConfigError(f"Missing required env vars: {', '.join(missing)}")
 
     host = os.environ["YAHOO_IMAP_HOST"]
-    port = int(os.getenv("YAHOO_IMAP_PORT", "993"))
     user = os.environ["YAHOO_MAIL_USER"]
     password = os.environ["YAHOO_MAIL_PASSWORD"]
     rules_path = Path(os.getenv("RULES_PATH", "rules.yaml"))
+
+    raw_port = os.getenv("YAHOO_IMAP_PORT", "993")
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise ConfigError(f"YAHOO_IMAP_PORT must be an integer, got: {raw_port!r}") from exc
 
     return AppConfig(
         imap=IMAPConfig(host=host, port=port, user=user, password=password),
