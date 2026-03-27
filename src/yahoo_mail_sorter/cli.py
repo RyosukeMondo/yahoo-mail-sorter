@@ -73,6 +73,8 @@ def _print_report(report: SortReport, *, dry_run: bool) -> None:
         console.print("\n[yellow]Pass --execute to actually move emails.[/yellow]")
     else:
         console.print(f"\n[green]Moved {report.moved} emails.[/green]")
+        if report.errors > 0:
+            console.print(f"[red]Failed to move {report.errors} emails.[/red]")
 
 
 # Common options
