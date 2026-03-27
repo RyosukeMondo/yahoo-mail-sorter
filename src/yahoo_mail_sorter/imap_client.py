@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import email as email_lib
 import imaplib
 import logging
+import re
 from typing import TYPE_CHECKING, Protocol
 
 from yahoo_mail_sorter.decoder import decode_header_value
@@ -63,7 +65,7 @@ class IMAPClient:
         try:
             self._conn.logout()
         except Exception:
-            pass
+            logger.debug("Error during IMAP logout (ignored)", exc_info=True)
         finally:
             self._conn = None
 
@@ -149,7 +151,7 @@ class IMAPClient:
                 email = _parse_headers(uid, item[1])
                 emails.append(email)
             except Exception:
-                logger.warning("Failed to parse headers for UID %s", uid)
+                logger.warning("Failed to parse headers for UID %s", uid, exc_info=True)
         return emails
 
     def _reconnect(self) -> None:
@@ -159,7 +161,7 @@ class IMAPClient:
             if self._conn is not None:
                 self._conn.logout()
         except Exception:
-            pass
+            logger.debug("Error during reconnect logout (ignored)", exc_info=True)
         self._conn = None
         self.connect()
         self.conn.select("INBOX", readonly=True)
@@ -192,8 +194,6 @@ class IMAPClient:
 
 def _extract_uid(response_line: bytes) -> str | None:
     """Extract UID from an IMAP FETCH response line like b'1 (UID 42 BODY[...]'."""
-    import re
-
     match = re.search(rb"UID (\d+)", response_line)
     if match:
         return match.group(1).decode()
@@ -202,9 +202,7 @@ def _extract_uid(response_line: bytes) -> str | None:
 
 def _parse_headers(uid: str, raw: bytes) -> Email:
     """Parse raw IMAP header bytes into an Email model."""
-    import email
-
-    msg = email.message_from_bytes(raw)
+    msg = email_lib.message_from_bytes(raw)
     return Email(
         uid=uid,
         subject=decode_header_value(msg.get("Subject")),

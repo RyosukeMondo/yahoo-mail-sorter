@@ -41,7 +41,7 @@ def decode_header_value(raw: str | bytes | None) -> str:
     try:
         return str(make_header(decode_header(raw)))
     except Exception:
-        pass
+        logger.debug("Standard RFC 2047 decode failed for %r, trying fallbacks", raw[:80])
 
     # Fallback: try common Japanese encodings on the raw bytes
     for encoding in ("utf-8", "iso-2022-jp", "shift_jis", "euc-jp"):
