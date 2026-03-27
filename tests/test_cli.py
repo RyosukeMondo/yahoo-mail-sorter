@@ -10,12 +10,6 @@ from typer.testing import CliRunner
 from yahoo_mail_sorter.cli import app
 from yahoo_mail_sorter.config import AppConfig, IMAPConfig
 from yahoo_mail_sorter.exceptions import ConfigError
-from yahoo_mail_sorter.models import (
-    Category,
-    ClassificationResult,
-    Email,
-    SortReport,
-)
 
 runner = CliRunner()
 
@@ -25,15 +19,6 @@ def _make_config() -> AppConfig:
         imap=IMAPConfig(host="imap.test", port=993, user="u", password="p"),
         rules_path=Path("rules.yaml"),
     )
-
-
-def _make_report(*categories: Category) -> SortReport:
-    report = SortReport()
-    for i, cat in enumerate(categories):
-        email = Email(uid=str(i), subject=f"Subject {i}", sender=f"s{i}@test.com")
-        result = ClassificationResult(email=email, category=cat, folder=cat.value)
-        report.add(result, was_moved=False)
-    return report
 
 
 class TestScanCommand:
