@@ -6,13 +6,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from yahoo_mail_sorter.classifier import Classifier
+from yahoo_mail_sorter.models import Email
 from yahoo_mail_sorter.sorter import Sorter
 
 if TYPE_CHECKING:
-    from yahoo_mail_sorter.models import (
-        CategoryConfig,
-        Email,
-    )
+    from yahoo_mail_sorter.models import CategoryConfig
 
 
 def _mock_imap(emails: list[Email]) -> MagicMock:
@@ -110,6 +108,23 @@ class TestSorterSort:
         assert report.total == 1
         assert report.moved == 0
         assert report.errors == 1  # failed moves counted as errors
+
+
+    def test_sort_caches_ensure_folder(
+        self,
+        sample_categories: list[CategoryConfig],
+        finance_email: Email,
+    ) -> None:
+        """ensure_folder should only be called once per unique folder."""
+        second = Email(uid="201", subject="入金のお知らせ", sender="info@mufg.co.jp")
+        imap = _mock_imap([finance_email, second])
+        clf = Classifier(sample_categories)
+        sorter = Sorter(imap, clf)
+
+        report = sorter.sort(execute=True)
+        assert report.moved == 2
+        # Both go to "Finance" so ensure_folder should only be called once
+        imap.ensure_folder.assert_called_once_with("Finance")
 
 
 class TestSorterClean:

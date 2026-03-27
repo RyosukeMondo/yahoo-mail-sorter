@@ -31,6 +31,7 @@ class Sorter:
     ) -> None:
         self._imap = imap
         self._classifier = classifier
+        self._ensured_folders: set[str] = set()
 
     def scan(self, limit: int | None = None) -> SortReport:
         """Fetch and classify emails without moving anything."""
@@ -118,11 +119,16 @@ class Sorter:
     def _move_one(self, result: ClassificationResult) -> bool:
         """Move a single email. Returns True on success."""
         try:
-            self._imap.ensure_folder(result.folder)
+            if result.folder not in self._ensured_folders:
+                self._imap.ensure_folder(result.folder)
+                self._ensured_folders.add(result.folder)
             self._imap.move_email(result.email.uid, result.folder)
             return True
         except Exception:
-            logger.warning("Failed to move UID %s to %s", result.email.uid, result.folder)
+            logger.warning(
+                "Failed to move UID %s to %s", result.email.uid, result.folder,
+                exc_info=True,
+            )
             return False
 
     def _reconnect(self) -> None:
