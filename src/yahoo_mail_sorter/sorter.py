@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -96,7 +97,7 @@ class Sorter:
 
             for result in batch:
                 moved = self._move_one(result)
-                report.add(result, was_moved=moved)
+                report.add(result, was_moved=moved, error=not moved)
 
                 if moved:
                     consecutive_failures = 0
@@ -126,10 +127,8 @@ class Sorter:
 
     def _reconnect(self) -> None:
         """Reconnect IMAP client."""
-        try:
+        with contextlib.suppress(Exception):
             self._imap.disconnect()
-        except Exception:
-            pass
         try:
             self._imap.connect()
         except Exception:

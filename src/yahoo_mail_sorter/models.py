@@ -92,9 +92,13 @@ class SortReport:
     errors: int = 0
     by_category: dict[Category, list[ClassificationResult]] = field(default_factory=dict)
 
-    def add(self, result: ClassificationResult, *, was_moved: bool) -> None:
+    def add(
+        self, result: ClassificationResult, *, was_moved: bool, error: bool = False
+    ) -> None:
         self.total += 1
-        if was_moved:
+        if error:
+            self.errors += 1
+        elif was_moved:
             self.moved += 1
         else:
             self.skipped += 1

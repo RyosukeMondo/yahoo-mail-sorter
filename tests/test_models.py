@@ -115,3 +115,15 @@ class TestSortReport:
         assert report.total == 1
         assert report.moved == 0
         assert report.skipped == 1
+        assert report.errors == 0
+
+    def test_add_error(self, sample_email: Email) -> None:
+        report = SortReport()
+        result = ClassificationResult(
+            email=sample_email, category=Category.FINANCE, folder="Finance"
+        )
+        report.add(result, was_moved=False, error=True)
+        assert report.total == 1
+        assert report.moved == 0
+        assert report.skipped == 0
+        assert report.errors == 1

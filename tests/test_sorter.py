@@ -108,7 +108,8 @@ class TestSorterSort:
 
         report = sorter.sort(execute=True)
         assert report.total == 1
-        assert report.moved == 0  # failed
+        assert report.moved == 0
+        assert report.errors == 1  # failed moves counted as errors
 
 
 class TestSorterClean:
