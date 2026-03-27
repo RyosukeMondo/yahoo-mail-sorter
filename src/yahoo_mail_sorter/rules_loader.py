@@ -12,11 +12,20 @@ from yahoo_mail_sorter.models import (
     CATEGORY_FOLDERS,
     Category,
     CategoryConfig,
+    Email,
     Rule,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+# Fields on Email that rules are allowed to match against.
+_VALID_RULE_FIELDS: frozenset[str] = frozenset(
+    f.name for f in Email.__dataclass_fields__.values() if f.name != "uid"
+)
+
+# Maximum regex pattern length to prevent excessively complex patterns.
+_MAX_PATTERN_LENGTH = 1000
 
 
 def load_rules(path: Path) -> list[CategoryConfig]:
@@ -65,7 +74,14 @@ def load_rules(path: Path) -> list[CategoryConfig]:
 
 
 def _parse_rules(raw_rules: list[dict[str, str]], category: Category) -> list[Rule]:
-    """Compile raw rule dicts into Rule objects with pre-compiled regex."""
+    """Compile raw rule dicts into Rule objects with pre-compiled regex.
+
+    Validates that:
+    - field and pattern are both present and non-empty
+    - field is a valid Email attribute name
+    - pattern length does not exceed _MAX_PATTERN_LENGTH
+    - pattern is a valid regular expression
+    """
     rules: list[Rule] = []
     for raw in raw_rules:
         field = raw.get("field", "")
@@ -73,6 +89,16 @@ def _parse_rules(raw_rules: list[dict[str, str]], category: Category) -> list[Ru
         if not field or not pattern_str:
             raise RulesLoadError(
                 f"Rule in {category.value} missing 'field' or 'pattern': {raw}"
+            )
+        if field not in _VALID_RULE_FIELDS:
+            raise RulesLoadError(
+                f"Invalid field {field!r} in {category.value}. "
+                f"Valid fields: {', '.join(sorted(_VALID_RULE_FIELDS))}"
+            )
+        if len(pattern_str) > _MAX_PATTERN_LENGTH:
+            raise RulesLoadError(
+                f"Pattern too long in {category.value} ({len(pattern_str)} chars, "
+                f"max {_MAX_PATTERN_LENGTH}): {pattern_str[:50]!r}..."
             )
         try:
             compiled = re.compile(pattern_str, re.IGNORECASE)

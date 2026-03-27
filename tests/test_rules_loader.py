@@ -80,3 +80,32 @@ class TestLoadRules:
         )
         with pytest.raises(RulesLoadError, match="missing"):
             load_rules(p)
+
+    def test_invalid_field_name_raises(self, tmp_path: Path) -> None:
+        p = tmp_path / "badfield.yaml"
+        p.write_text(
+            "categories:\n"
+            "  - name: spam\n"
+            "    priority: 1\n"
+            "    rules:\n"
+            "      - field: body\n"
+            '        pattern: "test"\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(RulesLoadError, match="Invalid field"):
+            load_rules(p)
+
+    def test_overly_long_pattern_raises(self, tmp_path: Path) -> None:
+        p = tmp_path / "longpattern.yaml"
+        long_pattern = "a" * 1001
+        p.write_text(
+            "categories:\n"
+            "  - name: spam\n"
+            "    priority: 1\n"
+            "    rules:\n"
+            "      - field: subject\n"
+            f'        pattern: "{long_pattern}"\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(RulesLoadError, match="Pattern too long"):
+            load_rules(p)
