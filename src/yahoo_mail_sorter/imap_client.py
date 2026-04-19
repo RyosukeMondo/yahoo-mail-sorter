@@ -6,6 +6,7 @@ import email as email_lib
 import imaplib
 import logging
 import re
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Protocol
 
 from yahoo_mail_sorter.decoder import decode_header_value
@@ -31,6 +32,12 @@ class IMAPClientProtocol(Protocol):
     def disconnect(self) -> None: ...
     def list_folders(self) -> list[str]: ...
     def fetch_emails(self, folder: str, limit: int | None) -> list[Email]: ...
+    def fetch_raw(
+        self,
+        folder: str,
+        limit: int | None,
+        search: str | None,
+    ) -> Iterator[tuple[str, int, bytes]]: ...
     def move_email(self, uid: str, dest_folder: str) -> None: ...
     def ensure_folder(self, folder: str) -> None: ...
 
@@ -154,6 +161,66 @@ class IMAPClient:
                 logger.warning("Failed to parse headers for UID %s", uid, exc_info=True)
         return emails
 
+    def fetch_raw(
+        self,
+        folder: str = "INBOX",
+        limit: int | None = None,
+        search: str | None = None,
+    ) -> Iterator[tuple[str, int, bytes]]:
+        """Yield (uid, uidvalidity, raw_rfc822_bytes) for messages in ``folder``.
+
+        ``search`` is an optional IMAP SEARCH criteria string (e.g.
+        ``'FROM "auctions.yahoo.co.jp"'``). When omitted, ALL is used.
+        Uses BODY.PEEK[] so messages are not marked read.
+        """
+        status, _ = self.conn.select(folder, readonly=True)
+        if status != "OK":
+            raise IMAPOperationError(f"SELECT {folder} failed: {status}")
+
+        uidvalidity = self._uidvalidity(folder)
+
+        if search:
+            status, uids_data = self.conn.uid("SEARCH", None, search)  # type: ignore[arg-type]
+        else:
+            status, uids_data = self.conn.uid("SEARCH", None, "ALL")  # type: ignore[arg-type]
+        if status != "OK":
+            raise IMAPOperationError(f"SEARCH failed: {status}")
+
+        raw_uids = uids_data[0]
+        if not raw_uids:
+            return
+        uid_list = raw_uids.split()
+        if limit is not None:
+            uid_list = uid_list[-limit:]
+
+        for raw_uid in uid_list:
+            uid = raw_uid.decode()
+            try:
+                status, data = self.conn.uid("FETCH", uid, "(BODY.PEEK[])")
+            except (imaplib.IMAP4.abort, imaplib.IMAP4.error) as exc:
+                logger.warning("Fetch UID %s failed, reconnecting: %s", uid, exc)
+                self._reconnect()
+                self.conn.select(folder, readonly=True)
+                status, data = self.conn.uid("FETCH", uid, "(BODY.PEEK[])")
+            if status != "OK":
+                logger.warning("FETCH UID %s failed: %s", uid, status)
+                continue
+            raw = _extract_body(data)
+            if raw is None:
+                logger.warning("No body returned for UID %s", uid)
+                continue
+            yield uid, uidvalidity, raw
+
+    def _uidvalidity(self, folder: str) -> int:
+        """Return UIDVALIDITY of the currently-selected folder."""
+        status, data = self.conn.status(folder, "(UIDVALIDITY)")
+        if status != "OK":
+            raise IMAPOperationError(f"STATUS {folder} UIDVALIDITY failed: {status}")
+        match = re.search(rb"UIDVALIDITY (\d+)", data[0] or b"")
+        if not match:
+            raise IMAPOperationError(f"Could not parse UIDVALIDITY from {data!r}")
+        return int(match.group(1))
+
     def _reconnect(self) -> None:
         """Drop current connection and reconnect."""
         logger.info("Reconnecting to IMAP server...")
@@ -190,6 +257,14 @@ class IMAPClient:
             if check_status != "OK":
                 raise IMAPOperationError(f"Cannot create folder {folder}: {status}")
             self.conn.select("INBOX", readonly=True)
+
+
+def _extract_body(data: list[object]) -> bytes | None:
+    """Extract the raw RFC822 body bytes from a FETCH BODY[] response."""
+    for item in data:
+        if isinstance(item, tuple) and len(item) >= 2 and isinstance(item[1], bytes):
+            return item[1]
+    return None
 
 
 def _extract_uid(response_line: bytes) -> str | None:

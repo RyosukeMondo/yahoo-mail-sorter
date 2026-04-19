@@ -13,6 +13,7 @@ from rich.table import Table
 
 from yahoo_mail_sorter.classifier import Classifier
 from yahoo_mail_sorter.config import load_config
+from yahoo_mail_sorter.dumper import Dumper
 from yahoo_mail_sorter.exceptions import YahooMailSorterError
 from yahoo_mail_sorter.imap_client import IMAPClient
 from yahoo_mail_sorter.models import Category, SortReport
@@ -176,6 +177,45 @@ def folders(
         console.print("[bold]IMAP Folders:[/bold]\n")
         for name in folder_list:
             console.print(f"  {name}")
+    except YahooMailSorterError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+
+@app.command()
+def dump(
+    db: Annotated[
+        Path,
+        typer.Option("--db", help="Path to SQLite DB file (created if missing)"),
+    ] = Path("mail_dump.sqlite"),
+    folder: Annotated[
+        str,
+        typer.Option("--folder", help="IMAP folder to dump"),
+    ] = "INBOX",
+    search: Annotated[
+        str | None,
+        typer.Option(
+            "--search",
+            help='Optional IMAP SEARCH criteria, e.g. \'FROM "auctions.yahoo.co.jp"\'',
+        ),
+    ] = None,
+    limit: LimitOpt = None,
+    env_file: EnvFileOpt = None,
+    debug: DebugOpt = False,
+) -> None:
+    """Dump raw RFC822 messages from a folder into a local SQLite DB (no parsing)."""
+    _setup_logging(debug)
+    try:
+        config = load_config(env_path=env_file)
+        imap = IMAPClient(config.imap)
+        dumper = Dumper(imap, db)
+        with imap:
+            report = dumper.dump(folder=folder, limit=limit, search=search)
+        console.print(
+            f"[green]Dumped[/green] {report.fetched} messages from "
+            f"[cyan]{report.folder}[/cyan] → [cyan]{report.db_path}[/cyan] "
+            f"(skipped {report.skipped} already present)"
+        )
     except YahooMailSorterError as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
